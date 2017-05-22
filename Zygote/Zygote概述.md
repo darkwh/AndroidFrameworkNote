@@ -6,7 +6,7 @@ zygote的原型app_process所对应的文件为app_main.cpp
 
 app_main::main中最终会调用AndroidRuntime::start方法
 
-AndroidRuntime::start中主要完成一下三件事情：
+AndroidRuntime::start中主要完成以下三件事情：
 - startVm(&mJavaVM, &env, zygote):创建虚拟机
 - startReg(env):注册android的native函数
 - CallStaticVoidMethod:调用com.android.internal.os.ZygoteInit的main函数
