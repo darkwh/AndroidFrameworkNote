@@ -1,0 +1,91 @@
+# JNI技术
+JNI技术全称**Java Native Interface**，通过JNI可以使Java和Native之间相互调用。
+本章节选取Android系统的MediaScanner来进行参考。
+
+## JNI文件的特点
+JNI文件是一个.so文件
+
+### JNI文件的命名方式
+>例:libxxx_jni.so
+
+- "xxx_jni"是JNI库的名字
+- "xxx"对应的是Native库的名字,例如libxxx.so
+
+注：JNI库的名字可以随便取,Android平台基本采用如上方式进行命名
+
+## Java调用Native函数
+1.static块中调用System.loadLibrary("xxx_jni")<br/>
+2.static块中调用native_init()函数<br/>
+3.Java文件中声明由关键字**native**修饰的函数<br/>
+注："xxx_jni"为JNI库的名字,linux系统动态拓展为libxxx_jni.so文件<br/>
+## JNI函数的两种注册方式
+
+### 静态注册
+这种方法是根据函数名来找对应的JNI函数，并且需要javah参与，步骤如下：
+- 编写Java代码并编译成class文件
+- 使用 javah -o [outname] [packagename].[classname]命令生成[outname].h的JNI层头
+文件
+- 编写cpp文件并实现上一步生成的头文件中的函数
+
+>###### 静态方法中Java层中native修饰的函数是如何找到对应的JNI函数的
+当Java层调用native_init函数时，他会从对应的JNI库中寻找Java_android_media_Media
+Scanner_native_linit函数，如果没有则报错。如果找到，则会为两者建立关系，即保存JNI函数
+的函数指针，这项工作由虚拟机完成。
+
+### 动态注册
+动态注册的核心是用一个结构体**JNINativeMethod**来记录Java native函数和JNI函数之间
+关联关系的。<br/>
+通过如下几个步骤可完成动态注册：
+- 声明一个JNINativeMethod数组，其成员就是Java层中所有native函数的对应关系
+- 调用AndroidRunTime::registerNativeMethods
+- AndroidRunTime最终会通过调用JNIEnv的RegisterNatives函数注册关联关系
+
+>注：当Java层通过System.loadLibrary加载完JNI动态库之后，紧接着会查找该库中名为
+JNI_OnLoad的函数，动态注册的工作就是在此时开始进行的。
+
+# JNIEnv
+
+JNIEnv是一个与线程相关的代表JNI环境的结构体，实际上JNIEnv就是提供了一些JNI系统函数，
+通过这些函数可以做到：
+- 调用Java的函数
+- 操作jobject对象等很多事情
+
+### JNIEnv与线程相关
+
+每个线程都用独自的JNIEnv结构体
+
+>如何获取一个线程中的JNIEnv
+- 调用JavaVM的AttachCurrentThread函数能够获得该线程的JNIEnv结构体
+- 后台退出前调用JavaVM的DetachCurrentThread函数释放资源
+
+### 通过JNIEnv操作jobject
+
+操作对象即操作对象的成员变量和成员函数
+
+##### jfieldID 和 jmethodID
+上面两者分别代表Java类的成员变量和成员函数，可通过JNIEnv的下面两个函数得到
+
+>```c++
+jfieldID GetFieldID(jclass clazz, const char *name, const char *sig)
+jmethodID GetMethodID(jclass clazz, const char *name, const char *sig)
+
+###### 使用jmethodID
+JNIEnv提供了Call<type>Method和CallStatic<type>Method两个方法来调用java层函数
+>```c++
+Call<type>Method(JNIEnv *env, jobject obj, jmethodID methodID, ...)
+CallStatic<type>Method(JNIEnv *env, jobject obj, jmethodID methodID, ...)
+
+###### 使用jfieldID
+JNIEnv同样提供了方法操作java类的属性
+>```c++
+Get<type>Field(JNIEnv *env, jobject obj, jfieldID fieldID)
+Set<type>Field(JNIEnv *env, jobject obj, jfieldID fieldID, NativeType value)
+
+### JNI类型签名介绍
+
+java -s -p xxx可以帮助生成函数或者变量的签名信息
+>xxx为编译后的class文件
+
+
+#### 个人总结
+- 如何快速定位到Java中native方法的具体实现：使用“包名_类名_方法名”进行搜索过滤
